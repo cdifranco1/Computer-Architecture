@@ -5,7 +5,13 @@ import sys
 # Inventory of files
 """
 
+
 """
+ALU = {"MUL", "ADD", "SUB"}
+# LDI = 10000010
+# HLT = 1
+# PRN = 1000111
+# MUL = 10100010
 
 class CPU:
     """Main CPU class."""
@@ -16,40 +22,48 @@ class CPU:
             0b10000010: {"name": "LDI", "operation": self.LDI},
             0b00000001: {"name": "HLT", "operation": self.HLT},
             0b01000111: {"name": "PRN", "operation": self.PRN},
+            0b10100010: {"name": "MUL", "operation": self.alu},
+            0b01000101: {"name": "PUSH", "operation": self.push},
+            0b01000110: {"name": "POP", "operation": self.pop}
         }
-
+        
         self.running = False
         self.pc = 0
         self.reg = [0] * 8
         self.size = 255
         self.ram = [0] * self.size
+        self.SP = self.size - 1
 
     def load(self):
         """Load a program into memory."""
 
+        #ram address is at 0
         address = 0
-        # For now, we've just hardcoded a program:
 
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+        if len(sys.argv) < 2:
+            print(f'Usage: ls8.py filename')
+        else:
+            filename = sys.argv[1]
 
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        with open(filename) as f:
+            for line in f:
+                x = line.split("#")[0]
+                instruction = x.strip()
+                if instruction == "":
+                    continue
 
+                self.ram[address] = int(instruction, 2)
+                address += 1
+
+        print(self.ram)
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
+        elif op == "MUL":
+            self.reg[reg_a] = self.reg[reg_a] * self.reg[reg_b] 
         #elif op == "SUB": etc
         else:
             raise Exception("Unsupported ALU operation")
@@ -74,6 +88,16 @@ class CPU:
 
         print()
     
+    def push(self):
+        reg_num = self.ram[self.pc + 1]
+        self.SP -= 1
+        self.ram[self.SP] = self.reg[reg_num]
+    
+    def pop(self):
+        reg_num = self.ram[self.pc + 1]
+        self.reg[reg_num] = self.ram[self.SP]
+        self.SP += 1
+    
     def ram_read(self, mar):
         return self.ram[mar]
     
@@ -84,16 +108,16 @@ class CPU:
         reg_num = self.ram_read(self.pc + 1)
         value = self.ram_read(self.pc + 2)
         self.reg[reg_num] = value
-        self.pc += 3
+        # self.pc += 3
     
     def HLT(self):
         self.running = False
-        self.pc += 1
+        # self.pc += 1
 
     def PRN(self):
         reg_num = self.ram_read(self.pc + 1)
         print(self.reg[reg_num])
-        self.pc += 2
+        # self.pc += 2
 
     def run(self):
         """Run the CPU."""
@@ -101,6 +125,13 @@ class CPU:
 
         while self.running:
             ir = self.ram[self.pc]
-            
+
+            op_name = self.opcodes[ir]["name"]
             op_func = self.opcodes[ir]["operation"]
-            op_func()
+            if op_name in ALU:
+                op_func(op_name, self.ram[self.pc + 1], self.ram[self.pc + 2])
+            else:
+                op_func()
+
+            ops = ir >> 6
+            self.pc += (ops + 1)
