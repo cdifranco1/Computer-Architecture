@@ -23,8 +23,11 @@ class CPU:
             0b00000001: {"name": "HLT", "operation": self.HLT},
             0b01000111: {"name": "PRN", "operation": self.PRN},
             0b10100010: {"name": "MUL", "operation": self.alu},
+            0b10100000: {"name": "ADD", "operation": self.alu},
             0b01000101: {"name": "PUSH", "operation": self.push},
-            0b01000110: {"name": "POP", "operation": self.pop}
+            0b01000110: {"name": "POP", "operation": self.pop},
+            0b01010000: {"name": "CALL", "operation": self.call},
+            0b00010001: {"name": "RET", "operation": self.ret}
         }
         
         self.running = False
@@ -54,8 +57,6 @@ class CPU:
 
                 self.ram[address] = int(instruction, 2)
                 address += 1
-
-        print(self.ram)
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
@@ -108,16 +109,28 @@ class CPU:
         reg_num = self.ram_read(self.pc + 1)
         value = self.ram_read(self.pc + 2)
         self.reg[reg_num] = value
-        # self.pc += 3
     
     def HLT(self):
         self.running = False
-        # self.pc += 1
 
     def PRN(self):
         reg_num = self.ram_read(self.pc + 1)
         print(self.reg[reg_num])
-        # self.pc += 2
+    
+    def call(self):
+        # print("RUNNING")
+        # add the next location of the pc onto the stack
+        self.SP -= 1
+        self.ram[self.SP] = self.pc + 2
+        # get register number where call address saved
+        reg_num = self.ram[self.pc + 1] 
+
+        # move PC to address saved in the register
+        self.pc = self.reg[reg_num]
+
+    def ret(self):
+        self.pc = self.ram[self.SP]
+        self.SP += 1
 
     def run(self):
         """Run the CPU."""
@@ -128,8 +141,12 @@ class CPU:
 
             op_name = self.opcodes[ir]["name"]
             op_func = self.opcodes[ir]["operation"]
+
             if op_name in ALU:
                 op_func(op_name, self.ram[self.pc + 1], self.ram[self.pc + 2])
+            elif op_name == "CALL" or op_name == "RET":
+                op_func()
+                continue
             else:
                 op_func()
 
