@@ -7,11 +7,17 @@ import sys
 
 
 """
-ALU = {"MUL", "ADD", "SUB"}
+ALU = {"MUL", "ADD", "SUB", "CMP"}
+NO_INCREMENT = {"JMP", "CALL", "RET", "JNE", "JEQ"}
+
 # LDI = 10000010
 # HLT = 1
 # PRN = 1000111
 # MUL = 10100010
+
+L = 4
+G = 2
+E = 1
 
 class CPU:
     """Main CPU class."""
@@ -27,9 +33,14 @@ class CPU:
             0b01000101: {"name": "PUSH", "operation": self.push},
             0b01000110: {"name": "POP", "operation": self.pop},
             0b01010000: {"name": "CALL", "operation": self.call},
-            0b00010001: {"name": "RET", "operation": self.ret}
+            0b00010001: {"name": "RET", "operation": self.ret},
+            0b10100111: {"name": "CMP", "operation": self.alu},
+            0b01010100: {"name": "JMP", "operation": self.jmp},
+            0b01010110: {"name": "JNE", "operation": self.jne},
+            0b01010101: {"name": "JEQ", "operation": self.jeq}
         }
-        
+        # `FL` bits: `00000LGE`
+        self.fl = 0
         self.running = False
         self.pc = 0
         self.reg = [0] * 8
@@ -64,10 +75,34 @@ class CPU:
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
         elif op == "MUL":
-            self.reg[reg_a] = self.reg[reg_a] * self.reg[reg_b] 
-        #elif op == "SUB": etc
+            self.reg[reg_a] = self.reg[reg_a] * self.reg[reg_b]
+        elif op == "CMP":
+            if self.reg[reg_a] < self.reg[reg_b]:
+                self.fl = L
+            elif self.reg[reg_a] > self.reg[reg_b]:
+                self.fl = G
+            elif self.reg[reg_a] == self.reg[reg_b]:
+                self.fl = E
+
         else:
             raise Exception("Unsupported ALU operation")
+    
+    def jmp(self):
+        reg_num = self.ram[self.pc + 1]
+        print(f"JUMPING to address: {self.reg[reg_num]}")
+        self.pc = self.reg[reg_num]
+    
+    def jne(self):
+        if self.fl != 1:
+            self.jmp()
+        else:
+            self.pc += 2
+    
+    def jeq(self):
+        if self.fl == 1:
+            self.jmp()
+        else:
+            self.pc += 2
 
     def trace(self):
         """
@@ -144,7 +179,7 @@ class CPU:
 
             if op_name in ALU:
                 op_func(op_name, self.ram[self.pc + 1], self.ram[self.pc + 2])
-            elif op_name == "CALL" or op_name == "RET":
+            elif op_name in NO_INCREMENT:
                 op_func()
                 continue
             else:
